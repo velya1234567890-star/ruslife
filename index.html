@@ -1,0 +1,1210 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>RusLife 3D</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { width:100%; height:100%; overflow:hidden; background:#87a7c7;
+    font-family:-apple-system,'Segoe UI',Roboto,sans-serif; touch-action:none; }
+  #canvasWrap { position:fixed; inset:0; }
+  canvas { display:block; }
+
+  #hud { position:fixed; inset:0; pointer-events:none; z-index:10; }
+  #crosshair { position:absolute; left:50%; top:50%; width:22px; height:22px;
+    transform:translate(-50%,-50%); opacity:.9; }
+  #crosshair::before, #crosshair::after { content:""; position:absolute;
+    background:#0f0; box-shadow:0 0 2px #000; }
+  #crosshair::before { left:10px; top:0; width:2px; height:22px; }
+  #crosshair::after { top:10px; left:0; height:2px; width:22px; }
+  #crosshair.hit::before, #crosshair.hit::after { background:#f00; }
+
+  #topInfo { position:absolute; top:12px; left:12px; color:#fff;
+    font-size:13px; text-shadow:0 1px 3px #000; line-height:1.5; }
+  #topInfo .badge { background:rgba(0,0,0,.45); padding:4px 10px;
+    border-radius:12px; display:inline-block; margin-right:6px; }
+
+  #ammoHud { position:absolute; right:16px; top:16px; background:rgba(0,0,0,.5);
+    color:#fff; padding:8px 14px; border-radius:12px; font-size:15px;
+    font-weight:600; text-shadow:0 1px 2px #000; }
+  #ammoHud .low { color:#ef4444; }
+
+  .btn-round { position:absolute; width:60px; height:60px; border-radius:50%;
+    background:rgba(0,0,0,.45); border:2px solid rgba(255,255,255,.6);
+    color:#fff; font-size:22px; display:flex; align-items:center;
+    justify-content:center; pointer-events:auto; user-select:none;
+    backdrop-filter:blur(4px); }
+  .btn-round:active { background:rgba(59,130,246,.7); }
+  #btnCam { right:16px; top:70px; }
+  #btnJump { right:16px; bottom:170px; }
+  #btnEnter { right:16px; bottom:100px; width:70px; height:70px; font-size:13px;
+    display:none; }
+  #btnSprint { left:16px; bottom:170px; width:64px; height:64px; font-size:20px; }
+  #btnFire { right:16px; bottom:250px; width:80px; height:80px; font-size:28px;
+    background:rgba(239,68,68,.55); border-color:rgba(255,255,255,.8); }
+  #btnReload { right:104px; bottom:250px; width:56px; height:56px; font-size:18px; }
+  #btnDoor { right:16px; bottom:100px; width:70px; height:70px; font-size:13px;
+    display:none; background:rgba(34,197,94,.6); }
+
+  #joystick { position:absolute; left:20px; bottom:20px; width:140px; height:140px;
+    border-radius:50%; background:rgba(0,0,0,.25);
+    border:2px solid rgba(255,255,255,.35); pointer-events:auto; }
+  #joystickKnob { position:absolute; left:50%; top:50%; width:60px; height:60px;
+    margin:-30px 0 0 -30px; border-radius:50%;
+    background:rgba(255,255,255,.55); border:2px solid rgba(255,255,255,.8); }
+
+  #lookZone { position:absolute; right:0; top:0; width:55%; height:100%;
+    pointer-events:auto; }
+
+  #hint { position:absolute; left:50%; bottom:24px; transform:translateX(-50%);
+    background:rgba(0,0,0,.6); color:#fff; font-size:13px; padding:8px 16px;
+    border-radius:20px; white-space:nowrap; opacity:0; transition:opacity .3s; }
+  #hint.show { opacity:1; }
+
+  #hitmarker { position:absolute; left:50%; top:50%; width:26px; height:26px;
+    transform:translate(-50%,-50%) rotate(45deg); opacity:0;
+    border:2px solid #f00; transition:opacity .1s; }
+
+  #lockerPanel { position:fixed; inset:0; background:rgba(0,0,0,.85);
+    display:none; align-items:center; justify-content:center; z-index:50;
+    backdrop-filter:blur(4px); }
+  #lockerPanel.open { display:flex; }
+  .locker-card { background:#161b22; border-radius:20px; padding:24px;
+    width:420px; max-width:92vw; max-height:90vh; overflow-y:auto;
+    border:1px solid #2a3240; color:#e6edf3; }
+  .locker-card h3 { margin-bottom:16px; font-size:20px; }
+  .locker-card .sub { font-size:13px; color:#8b949e; margin-bottom:16px; }
+  .locker-skin { display:flex; gap:12px; align-items:center; padding:12px;
+    background:#1c2330; border-radius:12px; border:1px solid #2a3240;
+    margin-bottom:10px; cursor:pointer; transition:border-color .15s; }
+  .locker-skin:hover { border-color:#3b82f6; }
+  .locker-skin.equipped { border-color:#22c55e;
+    box-shadow:0 0 0 2px rgba(34,197,94,.3); }
+  .locker-skin .skin-icon { width:56px; height:56px; border-radius:12px;
+    display:flex; align-items:center; justify-content:center; font-size:28px; }
+  .locker-skin .skin-info { flex:1; }
+  .locker-skin .skin-name { font-weight:600; font-size:14px; }
+  .locker-skin .skin-desc { font-size:11px; color:#8b949e; margin-top:2px; }
+  .locker-skin .skin-status { font-size:11px; font-weight:600; }
+  .locker-skin .skin-status.eq { color:#22c55e; }
+  .locker-skin .skin-status.locked { color:#ef4444; }
+  .locker-close { width:100%; padding:12px; border-radius:12px; border:none;
+    background:#1c2330; color:#e6edf3; font-size:14px; cursor:pointer;
+    margin-top:12px; }
+
+  #loading { position:fixed; inset:0; background:#0d1117; color:#fff;
+    display:flex; align-items:center; justify-content:center; font-size:18px;
+    z-index:100; }
+  #loading.hidden { display:none; }
+</style>
+</head>
+<body>
+
+<div id="loading">Загрузка 3D-мира…</div>
+
+<div id="canvasWrap"></div>
+
+<div id="hud">
+  <div id="crosshair"></div>
+  <div id="hitmarker"></div>
+  <div id="topInfo">
+    <span class="badge" id="modeBadge">1-е лицо</span>
+    <span class="badge" id="stateBadge">Пешком</span>
+    <span class="badge" id="locBadge">Улица</span>
+  </div>
+  <div id="ammoHud"><span id="ammoCount">30</span> / <span id="ammoMax">30</span></div>
+
+  <div id="lookZone"></div>
+  <div id="joystick"><div id="joystickKnob"></div></div>
+
+  <button class="btn-round" id="btnCam">👁</button>
+  <button class="btn-round" id="btnJump">⤒</button>
+  <button class="btn-round" id="btnSprint">🏃</button>
+  <button class="btn-round" id="btnEnter">Сесть</button>
+  <button class="btn-round" id="btnDoor">Войти</button>
+  <button class="btn-round" id="btnFire">🔫</button>
+  <button class="btn-round" id="btnReload">⟳</button>
+
+  <div id="hint"></div>
+</div>
+
+<div id="lockerPanel">
+  <div class="locker-card">
+    <h3 id="lockerTitle">Раздевалка</h3>
+    <div class="sub" id="lockerSub">Выберите форму</div>
+    <div id="lockerSkins"></div>
+    <button class="locker-close" id="lockerClose">Закрыть</button>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+/* ============================================================
+   ДАННЫЕ ОРГАНИЗАЦИЙ
+   ============================================================ */
+const ORGS = {
+  mvd: {
+    name:'МВД', full:'Министерство внутренних дел', icon:'🚔', color:0x3b82f6,
+    skin:{ name:'Спецназ МВД', icon:'🛡', desc:'Чёрная тактическая форма', color:0x1e40af }
+  },
+  gibdd: {
+    name:'ГИБДД', full:'Дорожная инспекция', icon:'🚦', color:0xeab308,
+    skin:{ name:'Инспектор ГИБДД', icon:'👮', desc:'Форма ДПС, жилет', color:0xca8a04 }
+  },
+  fsb: {
+    name:'ФСБ', full:'Федеральная служба безопасности', icon:'🕵', color:0x6b7280,
+    skin:{ name:'Управление «М»', icon:'🕶', desc:'Чёрный костюм, очки', color:0x111827 }
+  },
+  mo: {
+    name:'МО', full:'Министерство обороны', icon:'🎖', color:0x059669,
+    skin:{ name:'Военнослужащий', icon:'🪖', desc:'Полевая форма, каска', color:0x065f46 }
+  },
+  gov: {
+    name:'Правительство', full:'Администрация города', icon:'🏛', color:0x8b5cf6,
+    skin:{ name:'Госслужащий', icon:'👔', desc:'Деловой костюм', color:0x6d28d9 }
+  },
+  vch: {
+    name:'ВЧ', full:'Войсковая часть', icon:'🪖', color:0xdc2626,
+    skin:{ name:'Скин ВП', icon:'🪖', desc:'Форма войсковой части', color:0x7f1d1d }
+  }
+};
+
+/* ============================================================
+   СЦЕНА
+   ============================================================ */
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87a7c7);
+scene.fog = new THREE.Fog(0x87a7c7, 60, 220);
+
+const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 500);
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.getElementById('canvasWrap').appendChild(renderer.domElement);
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.9));
+const sun = new THREE.DirectionalLight(0xffffff, 1.4);
+sun.position.set(40, 60, 30);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -80;
+sun.shadow.camera.right = 80;
+sun.shadow.camera.top = 80;
+sun.shadow.camera.bottom = -80;
+scene.add(sun);
+
+/* ============================================================
+   МИР
+   ============================================================ */
+const worldGroup = new THREE.Group();
+scene.add(worldGroup);
+
+let colliders = [];
+let shootables = [];
+const targets = [];
+let impacts = [];
+
+function clearWorld() {
+  while (worldGroup.children.length) worldGroup.remove(worldGroup.children[0]);
+  colliders = [];
+  shootables = [];
+  targets.length = 0;
+  impacts.length = 0;
+}
+
+function addBox(x, y, z, w, h, d, color, isTarget=false, group=worldGroup) {
+  const geo = new THREE.BoxGeometry(w, h, d);
+  const mat = new THREE.MeshStandardMaterial({ color, roughness:0.85 });
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(x, y, z);
+  m.castShadow = true;
+  m.receiveShadow = true;
+  group.add(m);
+  colliders.push(m);
+  if (isTarget) shootables.push(m);
+  return m;
+}
+
+/* ============================================================
+   ЗДАНИЯ С ДВЕРЯМИ
+   ============================================================ */
+const buildings = [];
+
+function addBuilding(orgId, x, z, w, h, d, color) {
+  const org = ORGS[orgId];
+  // Корпус
+  addBox(x, h/2, z, w, h, d, color, true);
+  // Крыша
+  addBox(x, h + 0.3, z, w + 0.4, 0.6, d + 0.4, 0x444444, false);
+  // Вывеска
+  const signCanvas = document.createElement('canvas');
+  signCanvas.width = 256; signCanvas.height = 64;
+  const ctx = signCanvas.getContext('2d');
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, 256, 64);
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 32px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(org.icon + ' ' + org.name, 128, 32);
+  const tex = new THREE.CanvasTexture(signCanvas);
+  const sign = new THREE.Mesh(
+    new THREE.PlaneGeometry(6, 1.5),
+    new THREE.MeshBasicMaterial({ map: tex })
+  );
+  sign.position.set(x, h + 1.2, z + d/2 + 0.01);
+  worldGroup.add(sign);
+
+  // Дверь (триггер)
+  const doorMat = new THREE.MeshStandardMaterial({
+    color: 0x222222, emissive: 0x2244aa, emissiveIntensity: 0.3
+  });
+  const door = new THREE.Mesh(new THREE.BoxGeometry(2, 3, 0.2), doorMat);
+  door.position.set(x, 1.5, z + d/2 + 0.11);
+  worldGroup.add(door);
+
+  buildings.push({
+    orgId, org,
+    pos: new THREE.Vector3(x, 0, z + d/2 + 1.5),
+    doorPos: new THREE.Vector3(x, 1.5, z + d/2 + 0.11),
+    radius: 3
+  });
+}
+
+/* ============================================================
+   УЛИЦА
+   ============================================================ */
+function buildStreet() {
+  clearWorld();
+
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(300, 300),
+    new THREE.MeshStandardMaterial({ color:0x5f7a4f })
+  );
+  ground.rotation.x = -Math.PI/2;
+  ground.receiveShadow = true;
+  worldGroup.add(ground);
+  shootables.push(ground);
+
+  // Дороги
+  function road(x, z, w, d) {
+    const m = new THREE.Mesh(
+      new THREE.PlaneGeometry(w, d),
+      new THREE.MeshStandardMaterial({ color:0x333333 })
+    );
+    m.rotation.x = -Math.PI/2;
+    m.position.set(x, 0.01, z);
+    m.receiveShadow = true;
+    worldGroup.add(m);
+  }
+  road(0, 0, 200, 12);
+  road(0, 0, 12, 200);
+  road(-40, 0, 80, 10);
+  road(40, 0, 80, 10);
+
+  // Разметка
+  for (let i = -90; i < 90; i += 8) {
+    const m = new THREE.Mesh(
+      new THREE.PlaneGeometry(4, 0.3),
+      new THREE.MeshBasicMaterial({ color:0xffff00 })
+    );
+    m.rotation.x = -Math.PI/2; m.position.set(i, 0.02, 0);
+    worldGroup.add(m);
+  }
+  for (let i = -90; i < 90; i += 8) {
+    const m = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.3, 4),
+      new THREE.MeshBasicMaterial({ color:0xffff00 })
+    );
+    m.rotation.x = -Math.PI/2; m.position.set(0, 0.02, i);
+    worldGroup.add(m);
+  }
+
+  // Здания организаций
+  addBuilding('mvd',   -40, -40, 20, 12, 16, 0x3b82f6);
+  addBuilding('gibdd',  40, -40, 16, 10, 16, 0xeab308);
+  addBuilding('fsb',   -40,  40, 20, 14, 16, 0x4b5563);
+  addBuilding('mo',     40,  40, 18, 12, 16, 0x059669);
+  addBuilding('gov',     0, -60, 22, 16, 14, 0x8b5cf6);
+  addBuilding('vch',     0,  60, 18, 12, 14, 0xdc2626);
+
+  // Обычные дома
+  addBox(-70, 5, 0, 12, 10, 12, 0xaa8a6a, true);
+  addBox(70, 5, 0, 12, 10, 12, 0x6a8aaa, true);
+  addBox(-20, 4, -20, 8, 8, 8, 0x9a7a5a, true);
+  addBox(20, 4, -20, 8, 8, 8, 0x9a8a7a, true);
+  addBox(-20, 4, 20, 8, 8, 8, 0x8a9a7a, true);
+  addBox(20, 4, 20, 8, 8, 8, 0x7a8a9a, true);
+
+  // Мишени
+  function addTarget(x, z) {
+    const pole = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.1, 0.1, 2, 6),
+      new THREE.MeshStandardMaterial({ color:0x333333 })
+    );
+    pole.position.set(x, 1, z); worldGroup.add(pole);
+    const target = new THREE.Mesh(
+      new THREE.SphereGeometry(0.5, 12, 12),
+      new THREE.MeshStandardMaterial({ color:0xef4444 })
+    );
+    target.position.set(x, 2.2, z); target.castShadow = true;
+    worldGroup.add(target);
+    targets.push({ mesh: target, baseY: 2.2, alive: true, respawnAt: 0 });
+    shootables.push(target);
+  }
+  addTarget(-15, -10); addTarget(15, -10);
+  addTarget(-15, 10); addTarget(15, 10);
+  addTarget(0, -30); addTarget(0, 30);
+
+  // Деревья
+  for (let i = 0; i < 15; i++) {
+    const x = (Math.random()-0.5)*180;
+    const z = (Math.random()-0.5)*180;
+    const trunk = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.4, 0.5, 4, 8),
+      new THREE.MeshStandardMaterial({ color:0x6b4a2a })
+    );
+    trunk.position.set(x, 2, z); trunk.castShadow = true;
+    worldGroup.add(trunk); colliders.push(trunk);
+    shootables.push(trunk);
+    const crown = new THREE.Mesh(
+      new THREE.SphereGeometry(2.2, 8, 8),
+      new THREE.MeshStandardMaterial({ color:0x2e7d32 })
+    );
+    crown.position.set(x, 5, z); crown.castShadow = true;
+    worldGroup.add(crown); shootables.push(crown);
+  }
+
+  // Машина
+  if (!car.mesh) buildCar();
+  car.mesh.visible = true;
+  car.pos.set(12, 0, 0);
+  car.yaw = 0;
+  car.speed = 0;
+  car.occupied = false;
+  car.mesh.position.copy(car.pos);
+  car.mesh.rotation.y = car.yaw;
+  scene.add(car.mesh);
+
+  currentInterior = null;
+  document.getElementById('locBadge').textContent = 'Улица';
+}
+
+/* ============================================================
+   ИНТЕРЬЕР
+   ============================================================ */
+let currentInterior = null;
+
+function buildInterior(orgId) {
+  clearWorld();
+  if (car.mesh) car.mesh.visible = false;
+  currentInterior = orgId;
+
+  const org = ORGS[orgId];
+
+  // Пол
+  const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(40, 40),
+    new THREE.MeshStandardMaterial({ color:0x888888 })
+  );
+  floor.rotation.x = -Math.PI/2;
+  floor.receiveShadow = true;
+  worldGroup.add(floor);
+  shootables.push(floor);
+
+  // Стены (коридор 40x40, стены по периметру)
+  addBox(0, 5, -20, 40, 10, 1, 0x555555, true);
+  addBox(0, 5, 20, 40, 10, 1, 0x555555, true);
+  addBox(-20, 5, 0, 1, 10, 40, 0x555555, true);
+  addBox(20, 5, 0, 1, 10, 40, 0x555555, true);
+
+  // Потолок
+  const ceil = new THREE.Mesh(
+    new THREE.PlaneGeometry(40, 40),
+    new THREE.MeshStandardMaterial({ color:0x333333 })
+  );
+  ceil.rotation.x = Math.PI/2;
+  ceil.position.y = 10;
+  worldGroup.add(ceil);
+
+  // Внутренние перегородки — комнаты
+  addBox(-8, 3, -8, 0.5, 6, 12, 0x444444, true);
+  addBox(8, 3, -8, 0.5, 6, 12, 0x444444, true);
+  addBox(0, 3, -14, 16, 6, 0.5, 0x444444, true);
+
+  // Цветная полоса организации
+  const stripe = new THREE.Mesh(
+    new THREE.PlaneGeometry(38, 0.8),
+    new THREE.MeshBasicMaterial({ color: org.color })
+  );
+  stripe.rotation.x = -Math.PI/2;
+  stripe.position.set(0, 0.02, 12);
+  worldGroup.add(stripe);
+
+  // Вывеска внутри
+  const signCanvas = document.createElement('canvas');
+  signCanvas.width = 512; signCanvas.height = 128;
+  const ctx = signCanvas.getContext('2d');
+  ctx.fillStyle = '#111';
+  ctx.fillRect(0, 0, 512, 128);
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 48px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(org.icon + ' ' + org.full, 256, 64);
+  const tex = new THREE.CanvasTexture(signCanvas);
+  const sign = new THREE.Mesh(
+    new THREE.PlaneGeometry(16, 4),
+    new THREE.MeshBasicMaterial({ map: tex })
+  );
+  sign.position.set(0, 6, -19.4);
+  worldGroup.add(sign);
+
+  // Мебель: столы, стулья
+  function addTable(x, z) {
+    addBox(x, 0.75, z, 3, 0.15, 1.5, 0x8b5a2b, true);
+    addBox(x-1.2, 0.35, z, 0.15, 0.7, 0.15, 0x5a3a1b, true);
+    addBox(x+1.2, 0.35, z, 0.15, 0.7, 0.15, 0x5a3a1b, true);
+  }
+  addTable(-12, -2); addTable(12, -2);
+  addTable(-12, 6); addTable(12, 6);
+
+  // Раздевалка: шкафчики вдоль стены
+  const lockerMat = new THREE.MeshStandardMaterial({ color:0x3a5a8a });
+  for (let i = 0; i < 6; i++) {
+    const locker = new THREE.Mesh(
+      new THREE.BoxGeometry(1.2, 2.4, 0.6),
+      lockerMat
+    );
+    locker.position.set(-15 + i * 1.4, 1.2, 19.5);
+    locker.castShadow = true;
+    worldGroup.add(locker);
+    colliders.push(locker);
+    shootables.push(locker);
+  }
+
+  // Зона раздевалки — триггер
+  lockerTrigger = {
+    pos: new THREE.Vector3(0, 0, 18),
+    radius: 3
+  };
+
+  // Выход — дверь позади
+  const exitDoor = new THREE.Mesh(
+    new THREE.BoxGeometry(3, 4, 0.3),
+    new THREE.MeshStandardMaterial({ color:0x22c55e, emissive:0x115522, emissiveIntensity:0.4 })
+  );
+  exitDoor.position.set(0, 2, 19.6);
+  worldGroup.add(exitDoor);
+  exitTrigger = {
+    pos: new THREE.Vector3(0, 0, 18.5),
+    radius: 2.5
+  };
+
+  // Освещение внутри
+  const light = new THREE.PointLight(0xffffff, 1.2, 40);
+  light.position.set(0, 8, 0);
+  worldGroup.add(light);
+
+  // Спавн игрока
+  player.pos.set(0, 0, 15);
+  player.vel.set(0, 0, 0);
+
+  document.getElementById('locBadge').textContent = org.name;
+}
+
+let lockerTrigger = null;
+let exitTrigger = null;
+
+/* ============================================================
+   ПЕРСОНАЖ
+   ============================================================ */
+const player = {
+  pos: new THREE.Vector3(0, 0, 10),
+  vel: new THREE.Vector3(),
+  yaw: 0, pitch: 0,
+  onGround: true,
+  height: 1.7,
+  speed: 4.5,
+  sprintMul: 1.8,
+  jumpForce: 6.5,
+  gravity: -18,
+  radius: 0.4,
+  org: null,
+  equippedSkin: null
+};
+
+const playerMesh = new THREE.Group();
+const bodyMat = new THREE.MeshStandardMaterial({ color:0x3b82f6 });
+const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.35, 0.9, 4, 8), bodyMat);
+body.position.y = 1.0; body.castShadow = true; playerMesh.add(body);
+const head = new THREE.Mesh(
+  new THREE.SphereGeometry(0.28, 12, 12),
+  new THREE.MeshStandardMaterial({ color:0xffcc99 })
+);
+head.position.y = 1.75; head.castShadow = true; playerMesh.add(head);
+const legMat = new THREE.MeshStandardMaterial({ color:0x1e3a8a });
+const legL = new THREE.Mesh(new THREE.CapsuleGeometry(0.12, 0.5, 4, 6), legMat);
+legL.position.set(-0.15, 0.35, 0); legL.castShadow = true; playerMesh.add(legL);
+const legR = legL.clone(); legR.position.x = 0.15; playerMesh.add(legR);
+scene.add(playerMesh);
+
+/* ============================================================
+   ОРУЖИЕ
+   ============================================================ */
+const weapon = {
+  ammo: 30, maxAmmo: 30,
+  fireRate: 0.12, reloadTime: 1.8,
+  damage: 25, range: 100, spread: 0.012,
+  nextFire: 0, reloading: false, recoil: 0
+};
+
+const gunGroup = new THREE.Group();
+const gunBody = new THREE.Mesh(
+  new THREE.BoxGeometry(0.1, 0.12, 0.55),
+  new THREE.MeshStandardMaterial({ color:0x222222 })
+);
+gunBody.position.set(0, 0, -0.35); gunGroup.add(gunBody);
+const gunBarrel = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.025, 0.025, 0.35, 8),
+  new THREE.MeshStandardMaterial({ color:0x111111 })
+);
+gunBarrel.rotation.x = Math.PI/2;
+gunBarrel.position.set(0, 0.02, -0.75); gunGroup.add(gunBarrel);
+const gunGrip = new THREE.Mesh(
+  new THREE.BoxGeometry(0.08, 0.2, 0.12),
+  new THREE.MeshStandardMaterial({ color:0x333333 })
+);
+gunGrip.position.set(0, -0.14, -0.2); gunGroup.add(gunGrip);
+gunGroup.position.set(0.22, -0.2, -0.4);
+camera.add(gunGroup);
+scene.add(camera);
+
+const muzzleFlash = new THREE.PointLight(0xffaa00, 0, 8);
+muzzleFlash.position.set(0, 0.02, -0.9);
+gunGroup.add(muzzleFlash);
+
+/* ============================================================
+   МАШИНА
+   ============================================================ */
+const car = {
+  mesh: null,
+  pos: new THREE.Vector3(12, 0, 0),
+  yaw: 0, speed: 0,
+  maxSpeed: 18, accel: 12, brake: 20, turnSpeed: 1.8,
+  radius: 1.2, occupied: false
+};
+
+function buildCar() {
+  const g = new THREE.Group();
+  const bodyCar = new THREE.Mesh(
+    new THREE.BoxGeometry(2, 0.7, 4),
+    new THREE.MeshStandardMaterial({ color:0xcc2222 })
+  );
+  bodyCar.position.y = 0.7; bodyCar.castShadow = true; g.add(bodyCar);
+  const cabin = new THREE.Mesh(
+    new THREE.BoxGeometry(1.7, 0.6, 1.8),
+    new THREE.MeshStandardMaterial({ color:0x222222 })
+  );
+  cabin.position.set(0, 1.3, -0.1); cabin.castShadow = true; g.add(cabin);
+  const wheelMat = new THREE.MeshStandardMaterial({ color:0x111111 });
+  const wheelGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.3, 12);
+  [[-0.95,0.4,1.3],[0.95,0.4,1.3],[-0.95,0.4,-1.3],[0.95,0.4,-1.3]].forEach(p => {
+    const w = new THREE.Mesh(wheelGeo, wheelMat);
+    w.rotation.z = Math.PI/2; w.position.set(...p); w.castShadow = true; g.add(w);
+  });
+  g.position.copy(car.pos);
+  g.rotation.y = car.yaw;
+  scene.add(g);
+  car.mesh = g;
+}
+
+/* ============================================================
+   УПРАВЛЕНИЕ
+   ============================================================ */
+const keys = {};
+addEventListener('keydown', e => keys[e.code] = true);
+addEventListener('keyup', e => keys[e.code] = false);
+
+const joyEl = document.getElementById('joystick');
+const knobEl = document.getElementById('joystickKnob');
+let joyActive = false;
+let joyVector = { x:0, y:0 };
+let joyTouchId = null;
+
+function joyStart(e) {
+  e.preventDefault();
+  const t = e.changedTouches ? e.changedTouches[0] : e;
+  joyTouchId = t.identifier ?? 'mouse';
+  joyActive = true; joyMove(e);
+}
+function joyMove(e) {
+  if (!joyActive) return;
+  e.preventDefault();
+  const t = (e.changedTouches
+    ? Array.from(e.changedTouches).find(x => x.identifier === joyTouchId) : e);
+  if (!t) return;
+  const rect = joyEl.getBoundingClientRect();
+  const cx = rect.left + rect.width/2;
+  const cy = rect.top + rect.height/2;
+  let dx = t.clientX - cx, dy = t.clientY - cy;
+  const maxR = rect.width/2 - 30;
+  const len = Math.hypot(dx, dy);
+  if (len > maxR) { dx = dx/len*maxR; dy = dy/len*maxR; }
+  knobEl.style.transform = `translate(${dx}px, ${dy}px)`;
+  joyVector.x = dx / maxR;
+  joyVector.y = dy / maxR;
+}
+function joyEnd(e) {
+  e.preventDefault();
+  joyActive = false; joyTouchId = null;
+  knobEl.style.transform = 'translate(0,0)';
+  joyVector = { x:0, y:0 };
+}
+joyEl.addEventListener('touchstart', joyStart, { passive:false });
+joyEl.addEventListener('touchmove', joyMove, { passive:false });
+joyEl.addEventListener('touchend', joyEnd, { passive:false });
+joyEl.addEventListener('touchcancel', joyEnd, { passive:false });
+joyEl.addEventListener('mousedown', joyStart);
+addEventListener('mousemove', e => { if (joyActive && joyTouchId === 'mouse') joyMove(e); });
+addEventListener('mouseup', e => { if (joyTouchId === 'mouse') joyEnd(e); });
+
+const lookZone = document.getElementById('lookZone');
+let lookTouchId = null;
+let lookLast = null;
+function lookStart(e) {
+  e.preventDefault();
+  const t = e.changedTouches ? e.changedTouches[0] : e;
+  lookTouchId = t.identifier ?? 'mouse';
+  lookLast = { x: t.clientX, y: t.clientY };
+}
+function lookMove(e) {
+  if (lookTouchId === null) return;
+  e.preventDefault();
+  const t = (e.changedTouches
+    ? Array.from(e.changedTouches).find(x => x.identifier === lookTouchId) : e);
+  if (!t || !lookLast) return;
+  const dx = t.clientX - lookLast.x;
+  const dy = t.clientY - lookLast.y;
+  lookLast = { x: t.clientX, y: t.clientY };
+  const sens = 0.004;
+  player.yaw -= dx * sens;
+  player.pitch -= dy * sens;
+  player.pitch = Math.max(-1.2, Math.min(1.2, player.pitch));
+}
+function lookEnd() { lookTouchId = null; lookLast = null; }
+lookZone.addEventListener('touchstart', lookStart, { passive:false });
+lookZone.addEventListener('touchmove', lookMove, { passive:false });
+lookZone.addEventListener('touchend', lookEnd, { passive:false });
+lookZone.addEventListener('touchcancel', lookEnd, { passive:false });
+lookZone.addEventListener('mousedown', lookStart);
+addEventListener('mousemove', e => { if (lookTouchId === 'mouse') lookMove(e); });
+addEventListener('mouseup', e => { if (lookTouchId === 'mouse') lookEnd(); });
+
+let cameraMode = 1;
+document.getElementById('btnCam').addEventListener('click', () => {
+  cameraMode = cameraMode === 1 ? 3 : 1;
+  document.getElementById('modeBadge').textContent =
+    cameraMode === 1 ? '1-е лицо' : '3-е лицо';
+});
+
+let sprintTouch = false;
+document.getElementById('btnSprint').addEventListener('touchstart', e => {
+  e.preventDefault(); sprintTouch = true;
+}, { passive:false });
+document.getElementById('btnSprint').addEventListener('touchend', e => {
+  e.preventDefault(); sprintTouch = false;
+}, { passive:false });
+document.getElementById('btnSprint').addEventListener('mousedown', () => sprintTouch = true);
+addEventListener('mouseup', () => sprintTouch = false);
+
+let jumpTouch = false;
+function doJump() { jumpTouch = true; setTimeout(() => jumpTouch = false, 200); }
+document.getElementById('btnJump').addEventListener('touchstart', e => {
+  e.preventDefault(); doJump();
+}, { passive:false });
+document.getElementById('btnJump').addEventListener('click', doJump);
+
+document.getElementById('btnEnter').addEventListener('click', toggleCar);
+document.getElementById('btnDoor').addEventListener('click', interactDoor);
+
+let fireHold = false;
+function startFire() { fireHold = true; fireLoop(); }
+function stopFire() { fireHold = false; }
+function fireLoop() {
+  if (!fireHold) return;
+  tryShoot();
+  setTimeout(fireLoop, weapon.fireRate * 1000);
+}
+const fireBtn = document.getElementById('btnFire');
+fireBtn.addEventListener('touchstart', e => { e.preventDefault(); startFire(); }, { passive:false });
+fireBtn.addEventListener('touchend', e => { e.preventDefault(); stopFire(); }, { passive:false });
+fireBtn.addEventListener('mousedown', startFire);
+addEventListener('mouseup', stopFire);
+
+document.getElementById('btnReload').addEventListener('click', reload);
+
+/* ============================================================
+   ВЗАИМОДЕЙСТВИЕ С ДВЕРЯМИ
+   ============================================================ */
+let nearDoor = null;
+let nearLocker = false;
+let nearExit = false;
+
+function interactDoor() {
+  if (nearDoor) {
+    buildInterior(nearDoor.orgId);
+    nearDoor = null;
+    document.getElementById('btnDoor').style.display = 'none';
+    return;
+  }
+  if (nearExit) {
+    buildStreet();
+    nearExit = false;
+    document.getElementById('btnDoor').style.display = 'none';
+    return;
+  }
+  if (nearLocker) {
+    openLocker();
+    return;
+  }
+}
+
+function checkProximity() {
+  const btn = document.getElementById('btnDoor');
+
+  if (currentInterior === null) {
+    // На улице — проверяем двери зданий
+    nearLocker = false; nearExit = false;
+    let found = null;
+    for (const b of buildings) {
+      if (player.pos.distanceTo(b.pos) < b.radius) { found = b; break; }
+    }
+    nearDoor = found;
+    if (found) {
+      btn.textContent = 'Войти';
+      btn.style.display = 'flex';
+    } else {
+      btn.style.display = 'none';
+    }
+  } else {
+    // В интерьере
+    nearDoor = null;
+    nearLocker = lockerTrigger &&
+      player.pos.distanceTo(lockerTrigger.pos) < lockerTrigger.radius;
+    nearExit = exitTrigger &&
+      player.pos.distanceTo(exitTrigger.pos) < exitTrigger.radius;
+
+    if (nearLocker) {
+      btn.textContent = 'Раздевалка';
+      btn.style.display = 'flex';
+    } else if (nearExit) {
+      btn.textContent = 'Выйти';
+      btn.style.display = 'flex';
+    } else {
+      btn.style.display = 'none';
+    }
+  }
+}
+
+/* ============================================================
+   РАЗДЕВАЛКА
+   ============================================================ */
+function openLocker() {
+  const panel = document.getElementById('lockerPanel');
+  document.getElementById('lockerTitle').textContent =
+    'Раздевалка · ' + ORGS[currentInterior].name;
+  document.getElementById('lockerSub').textContent =
+    'Выберите форму организации';
+
+  const list = document.getElementById('lockerSkins');
+  list.innerHTML = '';
+
+  // Все организации — можно надеть форму только той, в которой состоишь
+  Object.entries(ORGS).forEach(([id, org]) => {
+    const equipped = player.equippedSkin === id;
+    const available = player.org === id;
+
+    const row = document.createElement('div');
+    row.className = 'locker-skin' + (equipped ? ' equipped' : '');
+    row.innerHTML = `
+      <div class="skin-icon" style="background:${'#'+org.skin.color.toString(16).padStart(6,'0')}">
+        ${org.skin.icon}
+      </div>
+      <div class="skin-info">
+        <div class="skin-name">${org.skin.name}</div>
+        <div class="skin-desc">${org.skin.desc}</div>
+      </div>
+      <div class="skin-status ${equipped ? 'eq' : available ? '' : 'locked'}">
+        ${equipped ? 'Надето' : available ? 'Надеть' : 'Недоступно'}
+      </div>`;
+    if (available && !equipped) {
+      row.addEventListener('click', () => equipSkin(id));
+    }
+    list.appendChild(row);
+  });
+
+  // Снять форму
+  const resetRow = document.createElement('div');
+  resetRow.className = 'locker-skin';
+  resetRow.innerHTML = `
+    <div class="skin-icon" style="background:#444">👤</div>
+    <div class="skin-info">
+      <div class="skin-name">Гражданская одежда</div>
+      <div class="skin-desc">Снять форму</div>
+    </div>
+    <div class="skin-status">${!player.equippedSkin ? 'Надето' : 'Снять'}</div>`;
+  if (player.equippedSkin) {
+    resetRow.addEventListener('click', () => equipSkin(null));
+  }
+  list.appendChild(resetRow);
+
+  panel.classList.add('open');
+}
+
+document.getElementById('lockerClose').addEventListener('click', () => {
+  document.getElementById('lockerPanel').classList.remove('open');
+});
+
+function equipSkin(orgId) {
+  player.equippedSkin = orgId;
+  if (orgId) {
+    bodyMat.color.setHex(ORGS[orgId].skin.color);
+    showHint('Форма: ' + ORGS[orgId].skin.name);
+  } else {
+    bodyMat.color.setHex(0x3b82f6);
+    showHint('Гражданская одежда');
+  }
+  document.getElementById('lockerPanel').classList.remove('open');
+}
+
+/* ============================================================
+   СТРЕЛЬБА
+   ============================================================ */
+const raycaster = new THREE.Raycaster();
+const hitmarker = document.getElementById('hitmarker');
+
+function tryShoot() {
+  if (weapon.reloading || weapon.ammo <= 0) return;
+  if (performance.now() / 1000 < weapon.nextFire) return;
+  weapon.nextFire = performance.now() / 1000 + weapon.fireRate;
+  weapon.ammo--;
+  updateAmmoHud();
+
+  muzzleFlash.intensity = 2;
+  setTimeout(() => muzzleFlash.intensity = 0, 50);
+
+  player.pitch += 0.015 + Math.random() * 0.01;
+  weapon.recoil = 0.05;
+
+  const dir = new THREE.Vector3(0, 0, -1);
+  dir.applyQuaternion(camera.quaternion);
+  dir.x += (Math.random() - 0.5) * weapon.spread * 2;
+  dir.y += (Math.random() - 0.5) * weapon.spread * 2;
+  dir.z += (Math.random() - 0.5) * weapon.spread * 2;
+  dir.normalize();
+
+  raycaster.set(camera.position, dir);
+  raycaster.far = weapon.range;
+  const hits = raycaster.intersectObjects(shootables, false);
+  if (hits.length > 0) {
+    const hit = hits[0];
+    spawnImpact(hit.point);
+    const target = targets.find(t => t.alive && t.mesh === hit.object);
+    if (target) killTarget(target);
+    showHitmarker();
+  }
+}
+
+function reload() {
+  if (weapon.reloading || weapon.ammo === weapon.maxAmmo) return;
+  weapon.reloading = true;
+  showHint('Перезарядка…');
+  setTimeout(() => {
+    weapon.ammo = weapon.maxAmmo;
+    weapon.reloading = false;
+    updateAmmoHud();
+    showHint('Готово');
+  }, weapon.reloadTime * 1000);
+}
+
+function updateAmmoHud() {
+  const el = document.getElementById('ammoCount');
+  el.textContent = weapon.ammo;
+  el.classList.toggle('low', weapon.ammo <= 5);
+}
+
+function showHitmarker() {
+  const ch = document.getElementById('crosshair');
+  ch.classList.add('hit');
+  hitmarker.style.opacity = 1;
+  setTimeout(() => {
+    ch.classList.remove('hit');
+    hitmarker.style.opacity = 0;
+  }, 100);
+}
+
+function spawnImpact(point) {
+  const geo = new THREE.SphereGeometry(0.06, 6, 6);
+  const mat = new THREE.MeshBasicMaterial({ color:0xffaa00 });
+  const m = new THREE.Mesh(geo, mat);
+  m.position.copy(point);
+  worldGroup.add(m);
+  impacts.push({ mesh: m, life: 0.3 });
+}
+
+function killTarget(target) {
+  target.alive = false;
+  target.mesh.visible = false;
+  target.respawnAt = performance.now() + 3000;
+  showHint('Попадание!');
+}
+
+function respawnTargets() {
+  const now = performance.now();
+  targets.forEach(t => {
+    if (!t.alive && now >= t.respawnAt) {
+      t.alive = true;
+      t.mesh.visible = true;
+      t.mesh.position.y = t.baseY;
+    }
+  });
+}
+
+/* ============================================================
+   ФИЗИКА
+   ============================================================ */
+const clock = new THREE.Clock();
+
+function resolveCollisions(newPos) {
+  const box = new THREE.Box3();
+  for (const c of colliders) {
+    box.setFromObject(c);
+    const min = box.min.clone().subScalar(player.radius);
+    const max = box.max.clone().addScalar(player.radius);
+    if (newPos.x > min.x && newPos.x < max.x &&
+        newPos.z > min.z && newPos.z < max.z &&
+        newPos.y > min.y && newPos.y < max.y) {
+      const dx1 = newPos.x - min.x, dx2 = max.x - newPos.x;
+      const dz1 = newPos.z - min.z, dz2 = max.z - newPos.z;
+      const m = Math.min(dx1, dx2, dz1, dz2);
+      if (m === dx1) newPos.x = min.x;
+      else if (m === dx2) newPos.x = max.x;
+      else if (m === dz1) newPos.z = min.z;
+      else newPos.z = max.z;
+    }
+  }
+  return newPos;
+}
+
+function updatePlayer(dt) {
+  let mx = 0, mz = 0;
+  if (keys['KeyW'] || keys['ArrowUp']) mz -= 1;
+  if (keys['KeyS'] || keys['ArrowDown']) mz += 1;
+  if (keys['KeyA'] || keys['ArrowLeft']) mx -= 1;
+  if (keys['KeyD'] || keys['ArrowRight']) mx += 1;
+  mx += joyVector.x; mz += joyVector.y;
+  const len = Math.hypot(mx, mz);
+  if (len > 1) { mx /= len; mz /= len; }
+
+  const sprinting = keys['ShiftLeft'] || sprintTouch;
+  const speed = player.speed * (sprinting ? player.sprintMul : 1);
+
+  const forward = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
+  const right = new THREE.Vector3(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
+  const targetVel = new THREE.Vector3()
+    .addScaledVector(forward, -mz * speed)
+    .addScaledVector(right, mx * speed);
+  player.vel.x = THREE.MathUtils.damp(player.vel.x, targetVel.x, 10, dt);
+  player.vel.z = THREE.MathUtils.damp(player.vel.z, targetVel.z, 10, dt);
+
+  if ((keys['Space'] || jumpTouch) && player.onGround) {
+    player.vel.y = player.jumpForce;
+    player.onGround = false;
+  }
+  player.vel.y += player.gravity * dt;
+
+  const newPos = player.pos.clone();
+  newPos.x += player.vel.x * dt;
+  newPos.z += player.vel.z * dt;
+  newPos.y += player.vel.y * dt;
+  const resolved = resolveCollisions(newPos);
+  if (resolved.y <= 0) {
+    resolved.y = 0; player.vel.y = 0; player.onGround = true;
+  } else player.onGround = false;
+  player.pos.copy(resolved);
+
+  playerMesh.position.copy(player.pos);
+  playerMesh.rotation.y = player.yaw + Math.PI;
+  playerMesh.visible = cameraMode !== 1;
+
+  const walking = Math.hypot(player.vel.x, player.vel.z) > 0.3;
+  if (walking) {
+    const t = performance.now() * 0.01;
+    legL.rotation.x = Math.sin(t) * 0.6;
+    legR.rotation.x = Math.sin(t + Math.PI) * 0.6;
+  } else {
+    legL.rotation.x *= 0.9; legR.rotation.x *= 0.9;
+  }
+
+  weapon.recoil = THREE.MathUtils.damp(weapon.recoil, 0, 8, dt);
+  player.pitch += weapon.recoil * dt;
+
+  updateCamera();
+}
+
+function updateCamera() {
+  if (cameraMode === 1) {
+    camera.position.set(player.pos.x, player.pos.y + player.height, player.pos.z);
+    camera.rotation.order = 'YXZ';
+    camera.rotation.y = player.yaw;
+    camera.rotation.x = player.pitch;
+    gunGroup.visible = true;
+  } else {
+    const dist = 5, height = 2.5;
+    const behind = new THREE.Vector3(
+      Math.sin(player.yaw) * dist, height, Math.cos(player.yaw) * dist
+    );
+    camera.position.copy(player.pos).add(behind);
+    camera.lookAt(player.pos.x, player.pos.y + 1.4, player.pos.z);
+    gunGroup.visible = false;
+  }
+}
+
+/* ============================================================
+   МАШИНА
+   ============================================================ */
+function updateCar(dt) {
+  if (!car.occupied) return;
+  let accelInput = 0, turnInput = 0;
+  if (keys['KeyW'] || keys['ArrowUp']) accelInput += 1;
+  if (keys['KeyS'] || keys['ArrowDown']) accelInput -= 1;
+  if (keys['KeyA'] || keys['ArrowLeft']) turnInput -= 1;
+  if (keys['KeyD'] || keys['ArrowRight']) turnInput += 1;
+  accelInput += -joyVector.y;
+  turnInput += joyVector.x;
+
+  if (accelInput > 0) car.speed += car.accel * dt;
+  else if (accelInput < 0) car.speed -= car.brake * dt;
+  else car.speed *= 0.96;
+  car.speed = Math.max(-car.maxSpeed * 0.4, Math.min(car.maxSpeed, car.speed));
+
+  if (Math.abs(car.speed) > 0.5) {
+    car.yaw += turnInput * car.turnSpeed * dt * (car.speed > 0 ? 1 : -1);
+  }
+
+  const forward = new THREE.Vector3(-Math.sin(car.yaw), 0, -Math.cos(car.yaw));
+  const newPos = car.pos.clone().addScaledVector(forward, car.speed * dt);
+
+  const box = new THREE.Box3();
+  for (const c of colliders) {
+    box.setFromObject(c);
+    const min = box.min.clone().subScalar(car.radius);
+    const max = box.max.clone().addScalar(car.radius);
+    if (newPos.x > min.x && newPos.x < max.x &&
+        newPos.z > min.z && newPos.z < max.z) {
+      car.speed = 0; newPos.copy(car.pos); break;
+    }
+  }
+
+  car.pos.copy(newPos);
+  car.mesh.position.copy(car.pos);
+  car.mesh.rotation.y = car.yaw;
+  player.pos.copy(car.pos);
+
+  const camPos = new THREE.Vector3(
+    car.pos.x + Math.sin(car.yaw) * 8, 4,
+    car.pos.z + Math.cos(car.yaw) * 8
+  );
+  camera.position.lerp(camPos, 0.15);
+  camera.lookAt(car.pos.x, 1.5, car.pos.z);
+}
+
+function toggleCar() {
+  if (!car.occupied) {
+    if (player.pos.distanceTo(car.pos) > 4) {
+      showHint('Подойдите ближе');
+      return;
+    }
+    car.occupied = true;
+    document.getElementById('stateBadge').textContent = 'В машине';
+    document.getElementById('btnEnter').textContent = 'Выйти';
+  } else {
+    car.occupied = false; car.speed = 0;
+    player.pos.set(
+      car.pos.x + Math.cos(car.yaw) * 2, 0,
+      car.pos.z - Math.sin(car.yaw) * 2
+    );
+    document.getElementById('stateBadge').textContent = 'Пешком';
+    document.getElementById('btnEnter').style.display = 'none';
+  }
+}
+
+function checkCarProximity() {
+  if (car.occupied || currentInterior !== null) return;
+  const dist = player.pos.distanceTo(car.pos);
+  document.getElementById('btnEnter').style.display = dist < 4 ? 'flex' : 'none';
+}
+
+/* ============================================================
+   ПОДСКАЗКА
+   ============================================================ */
+let hintTimer = null;
+function showHint(text) {
+  const el = document.getElementById('hint');
+  el.textContent = text;
+  el.classList.add('show');
+  clearTimeout(hintTimer);
+  hintTimer = setTimeout(() => el.classList.remove('show'), 1500);
+}
+
+/* ============================================================
+   ЦИКЛ
+   ============================================================ */
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+
+  if (car.occupied) updateCar(dt);
+  else updatePlayer(dt);
+
+  checkCarProximity();
+  checkProximity();
+  respawnTargets();
+
+  for (let i = impacts.length - 1; i >= 0; i--) {
+    impacts[i].life -= dt;
+    if (impacts[i].life <= 0) {
+      worldGroup.remove(impacts[i].mesh);
+      impacts.splice(i, 1);
+    }
+  }
+
+  renderer.render(scene, camera);
+}
+
+buildStreet();
+updateAmmoHud();
+document.getElementById('loading').classList.add('hidden');
+animate();
+</script>
+</body>
+</html>
